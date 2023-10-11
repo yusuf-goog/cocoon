@@ -408,7 +408,7 @@ targets:
         expect(db.values.values.whereType<Task>().where((Task task) => task.status == Task.statusInProgress).length, 1);
       });
 
-      test('skip scheduling bringup true targets', () async {
+      test('skip scheduling bringup true targets for BatchPolicy', () async {
         final PullRequest mergedPr = generatePullRequest();
 
         httpClient = MockClient((http.Request request) async {
@@ -417,6 +417,36 @@ targets:
               '''
 enabled_branches:
   - master
+targets:
+  - name: Linux A
+    scheduler: cocoon
+  - name: Linux B
+    scheduler: cocoon
+    bringup: true
+          ''',
+              200,
+            );
+          }
+          throw Exception('Failed to find ${request.url.path}');
+        });
+        await scheduler.addPullRequest(mergedPr);
+        expect(db.values.values.whereType<Commit>().length, 1);
+        expect(db.values.values.whereType<Task>().length, 2);
+        final Task taskA = db.values.values.whereType<Task>().where((task) => task.name == 'Linux A').single;
+        final Task taskB = db.values.values.whereType<Task>().where((task) => task.name == 'Linux B').single;
+        expect(taskA.status, Task.statusInProgress);
+        expect(taskB.status, Task.statusNew);
+      });
+
+      test('schedule bringup true targets for GuaranteedPolicy', () async {
+        final PullRequest mergedPr = generatePullRequest(repo: 'engine', branch: 'main');
+
+        httpClient = MockClient((http.Request request) async {
+          if (request.url.path.contains('.ci.yaml')) {
+            return http.Response(
+              '''
+enabled_branches:
+  - main
 targets:
   - name: Linux A
     scheduler: cocoon
@@ -436,7 +466,7 @@ targets:
         final Task taskA = db.values.values.whereType<Task>().where((task) => task.name == 'Linux A').single;
         final Task taskB = db.values.values.whereType<Task>().where((task) => task.name == 'Linux B').single;
         expect(taskA.status, Task.statusInProgress);
-        expect(taskB.status, Task.statusNew);
+        expect(taskB.status, Task.statusInProgress);
       });
 
       test('does not schedule tasks against non-merged PRs', () async {
@@ -775,6 +805,28 @@ targets:
             'Linux A',
             null,
             // Linux runIf is not run as this is for tip of tree and the files weren't affected
+          ],
+        );
+      });
+
+      test('Do not schedule other targets on revert request.', () async {
+        final PullRequest releasePullRequest = generatePullRequest(
+          labels: [IssueLabel(name: 'revert of')],
+        );
+
+        releasePullRequest.user = User(login: 'auto-submit[bot]');
+
+        await scheduler.triggerPresubmitTargets(pullRequest: releasePullRequest);
+        expect(
+          verify(mockGithubChecksUtil.createCheckRun(any, any, any, captureAny, output: captureAnyNamed('output')))
+              .captured,
+          <dynamic>[
+            Scheduler.kCiYamlCheckName,
+            // No other targets should be created.
+            const CheckRunOutput(
+              title: Scheduler.kCiYamlCheckName,
+              summary: 'If this check is stuck pending, push an empty commit to retrigger the checks',
+            ),
           ],
         );
       });
