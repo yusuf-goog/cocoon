@@ -394,7 +394,7 @@ class AndroidDevice implements Device {
 
     // Listen to the stdout and stderr streams
     LineSplitter().convert(result.stdout).forEach((data) {
-      final packageMatch = RegExp(r'package:(.+)$').firstMatch(data);
+      final packageMatch = RegExp(r'package:.*=(.+)$').firstMatch(data);
       if (packageMatch != null) {
         final packageName = packageMatch.group(1);
         if (packageName != null) {
@@ -406,6 +406,10 @@ class AndroidDevice implements Device {
       final r = Process.runSync('adb', <String>['shell', 'pm', 'clear', p]);
       if (r.exitCode != 0) {
         print('Clearing package $p resulted in a non-zero exit.');
+        print('STDERR: ${r.stderr}');
+        print('STDOUT: ${r.stdout}');
+      } else {
+        print('Uninstalling package $p : STDOUT(${r.stdout})');
       }
     }
   }
@@ -420,7 +424,7 @@ class AndroidDevice implements Device {
 
     // Listen to the stdout and stderr streams
     LineSplitter().convert(result.stdout).forEach((data) {
-      final packageMatch = RegExp(r'package:(.+)$').firstMatch(data);
+      final packageMatch = RegExp(r'package:.*=(.+)$').firstMatch(data);
       if (packageMatch != null) {
         final packageName = packageMatch.group(1);
         if (packageName != null) {
@@ -432,6 +436,10 @@ class AndroidDevice implements Device {
       final r = Process.runSync('adb', <String>['shell', 'pm', 'uninstall', p]);
       if (r.exitCode != 0) {
         print('Uninstalling package $p resulted in a non-zero exit.');
+        print('STDERR: ${r.stderr}');
+        print('STDOUT: ${r.stdout}');
+      } else {
+        print('Uninstalling package $p : STDOUT(${r.stdout})');
       }
     }
   }
